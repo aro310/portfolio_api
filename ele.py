@@ -37,7 +37,8 @@ def generate_audio_base64(texte):
     response = requests.post(url, json=data, headers=headers)
 
     if response.status_code != 200:
-        print(f"Erreur ElevenLabs ({response.status_code}): {response.text}")
-        return None
+        error_msg = f"Erreur ElevenLabs ({response.status_code}): {response.text}"
+        print(error_msg)
+        raise Exception(error_msg)
 
     return base64.b64encode(response.content).decode("utf-8")
