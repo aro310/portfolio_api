@@ -102,17 +102,14 @@ def chat_with_gemini(prompt: str, history: list = None):
                 "Utilise ces infos pour répondre si elles sont pertinentes."
             )
 
-    # 2. Setup Persona
-    current_date = "Lundi 26 Janvier 2026"
+    # 2. Setup Persona — date en français sans locale système (incompatible Vercel)
     from datetime import datetime
-    import locale
+    _jours = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"]
+    _mois  = ["janvier","février","mars","avril","mai","juin",
+              "juillet","août","septembre","octobre","novembre","décembre"]
+    _now = datetime.now()
+    current_date = f"{_jours[_now.weekday()]} {_now.day:02d} {_mois[_now.month-1]} {_now.year}"
 
-    try:
-        locale.setlocale(locale.LC_TIME, 'fr_FR.UTF-8')
-    except:
-        locale.setlocale(locale.LC_TIME, '')
-
-    current_date = datetime.now().strftime("%A %d %B %Y")
 
     system_instruction = (
         f"Tu es Aro, l'assistant IA intégré au portfolio de Aro Fortunat, développeur Full-Stack et expert n8n. "
