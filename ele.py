@@ -5,10 +5,7 @@ import itertools
 
 # Liste des clés API
 ELEVENLABS_API_KEYS = [
-    "sk_347b68e3aec98ee812e93934c9844c323356af05713ad9a0",
-    "sk_b15828ef829138a668570cf2e049bbee8b474c79dbc5e8e6",
-    "sk_55524b9c3e4677f0e279ec7db556e1d9d9e3b90a5329e83e",
-    "sk_b15828ef829138a668570cf2e049bbee8b474c79dbc5e8e6"
+    "sk_347b68e3aec98ee812e93934c9844c323356af05713ad9a0"
 ]
 
 # Générateur circulaire (A → B → C → A → ...)
