@@ -10,8 +10,14 @@ from gemini_api import chat_with_gemini
 
 # Initialisation Flask
 app = Flask(__name__)
-# CORS : Autorise tout pour le dev, à restreindre en prod si besoin
-CORS(app)
+
+# CORS explicite : autorise Netlify, Vercel et localhost
+CORS(app, resources={r"/api/*": {
+    "origins": ["*"],  # En prod, remplace par ton URL Netlify exacte
+    "methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
+
 
 # Import optionnel Audio (Gestion d'erreur silencieuse si module absent)
 try:
