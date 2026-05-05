@@ -8,7 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 MODEL_NAME = "llama-3.3-70b-versatile"
 URL = "https://api.groq.com/openai/v1/chat/completions"
 

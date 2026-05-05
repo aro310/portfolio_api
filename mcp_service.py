@@ -4,7 +4,7 @@ from mcp.client.sse import sse_client
 from mcp.client.session import ClientSession
 import os
 
-N8N_MCP_SERVER_URL = os.environ.get("N8N_MCP_SERVER_URL", "https://n8n-ephw.onrender.com/mcp/f89eb4ed-5d78-40e2-9ec2-941a403c0b91")
+N8N_MCP_SERVER_URL = os.environ.get("N8N_MCP_SERVER_URL", "")
 
 class MCPService:
     def __init__(self, url: str):
