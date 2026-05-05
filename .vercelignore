@@ -1,0 +1,21 @@
+# Vercel deployment ignore list
+__pycache__/
+*.pyc
+*.pyo
+.env
+tests/
+extras/
+sortie/
+res/
+lecon
+lecon.txt
+api.txt
+rhubarb.exe
+test_chat.py
+debug_mcp.py
+gemini_apis.py
+app copy.py
+sub.py
+CHANGELOG.md
+LICENSE.md
+README.adoc

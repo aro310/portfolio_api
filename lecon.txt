@@ -1,0 +1,2 @@
+npx gltfjsx public/models/646d9dcdc8a5f5bddbfac913.glb -0 src/components/Avatar.jsx -r public 
+./rhubarb -f json ..\public\audios\aro.ogg -o aro.json  

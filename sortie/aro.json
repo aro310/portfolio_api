@@ -1,0 +1,12 @@
+{
+  "metadata": {
+    "soundFile": "E:\\reactav\\aro\\rhub\\sortie\\output.ogg",
+    "duration": 0.78
+  },
+  "mouthCues": [
+    { "start": 0.00, "end": 0.06, "value": "X" },
+    { "start": 0.06, "end": 0.30, "value": "B" },
+    { "start": 0.30, "end": 0.51, "value": "F" },
+    { "start": 0.51, "end": 0.78, "value": "X" }
+  ]
+}
