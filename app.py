@@ -5,8 +5,52 @@ import smtplib
 import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-# Import relatif propre
 from gemini_api import chat_with_gemini
+
+# ── Supabase (optionnel : uniquement si les variables d'env sont définies) ──
+_supabase = None
+try:
+    _sb_url = os.environ.get("SUPABASE_URL", "")
+    _sb_key = os.environ.get("SUPABASE_KEY", "")
+    if _sb_url and _sb_key:
+        from supabase import create_client
+        _supabase = create_client(_sb_url, _sb_key)
+        print("Supabase connecté ✓")
+except Exception as _e:
+    print(f"Supabase non disponible : {_e}")
+
+
+def _load_history(session_id: str, limit: int = 20) -> list:
+    """Charge les derniers messages d'une session depuis Supabase."""
+    if not _supabase or not session_id:
+        return []
+    try:
+        res = (
+            _supabase.table("conversations")
+            .select("role, content")
+            .eq("session_id", session_id)
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+        return [{"role": r["role"], "content": r["content"]} for r in (res.data or [])]
+    except Exception as e:
+        print(f"Erreur chargement historique : {e}")
+        return []
+
+
+def _save_message(session_id: str, role: str, content: str):
+    """Sauvegarde un message dans Supabase."""
+    if not _supabase or not session_id:
+        return
+    try:
+        _supabase.table("conversations").insert({
+            "session_id": session_id,
+            "role": role,
+            "content": content
+        }).execute()
+    except Exception as e:
+        print(f"Erreur sauvegarde message : {e}")
 
 # Initialisation Flask
 app = Flask(__name__)
@@ -39,34 +83,44 @@ def home():
 @app.route("/api/chat", methods=["POST"])
 def chat():
     """
-    Endpoint Chat optimisé.
-    Accepte { "prompt": "...", "history": [...] }
+    Endpoint Chat.
+    Accepte { "prompt": "...", "session_id": "..." }
+    Historique chargé/sauvegardé dans Supabase si configuré.
     """
     try:
         data = request.get_json()
         prompt = data.get("prompt")
-        history = data.get("history", []) # Le frontend gère la mémoire
+        session_id = data.get("session_id", "")
 
         if not prompt:
-            return jsonify({"status": "error", "message": "Il manque le ballon (Prompt vide)"}), 400
+            return jsonify({"status": "error", "message": "Prompt vide"}), 400
 
-        # Appel à la logique NLP
+        # Charger l'historique depuis Supabase (ou liste vide si pas configuré)
+        history = _load_history(session_id)
+
+        # Sauvegarder le message user
+        _save_message(session_id, "user", prompt)
+
+        # Appel LLM
         chat_result = chat_with_gemini(prompt, history)
-        
+
         response_text = ""
         action = None
-        
+
         if isinstance(chat_result, dict):
             response_text = chat_result.get("response", "")
             action = chat_result.get("action")
         else:
-            response_text = chat_result
+            response_text = str(chat_result)
+
+        # Sauvegarder la réponse assistant
+        if response_text:
+            _save_message(session_id, "assistant", response_text)
 
         return jsonify({
             "status": "success",
             "response": response_text,
             "action": action
-            # On pourrait renvoyer l'historique mis à jour ici si on voulait faire du stateful
         })
 
     except Exception as e:
