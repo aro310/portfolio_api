@@ -9,11 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from bs4 import BeautifulSoup
 
 # --- CONFIGURATION ---
-# Dans Vercel, définir UNE seule variable :
-# GROQ_API_KEYS=clé1,clé2,clé3,clé4,clé5,clé6
 _GROQ_KEYS = [k.strip() for k in os.environ.get("GROQ_API_KEYS", "").split(",") if k.strip()]
 
-# Fallback : ancienne variable GROQ_API_KEY (rétrocompatibilité)
 if not _GROQ_KEYS:
     legacy = os.environ.get("GROQ_API_KEY", "")
     if legacy:
@@ -25,12 +22,11 @@ if not _GROQ_KEYS:
 MODEL_NAME = "llama-3.3-70b-versatile"
 URL = "https://api.groq.com/openai/v1/chat/completions"
 
-# ── Rotation des clés Groq (thread-safe) ────────────────────────────────────
+# ── Rotation des clés Groq (thread-safe) ─────────────────────────────────────
 _key_index = 0
 _key_lock  = threading.Lock()
 
 def get_next_key() -> str:
-    """Retourne la prochaine clé en round-robin."""
     global _key_index
     with _key_lock:
         key = _GROQ_KEYS[_key_index % len(_GROQ_KEYS)]
@@ -38,11 +34,6 @@ def get_next_key() -> str:
     return key
 
 def _call_groq(payload: dict, timeout: int = 20) -> dict:
-    """
-    Appelle l'API Groq avec rotation automatique sur quota épuisé (429).
-    Essaie chaque clé une fois au maximum.
-    Retourne le JSON de la réponse, ou {"error": "..."} si tout échoue.
-    """
     last_error = None
     tried = 0
     total = len(_GROQ_KEYS)
@@ -58,7 +49,6 @@ def _call_groq(payload: dict, timeout: int = 20) -> dict:
             resp = requests.post(URL, headers=headers, data=json.dumps(payload), timeout=timeout)
 
             if resp.status_code == 429:
-                # Quota épuisé → essaie la clé suivante
                 print(f"[ROTATION] Clé {key[:8]}... épuisée (429), passage à la suivante.")
                 last_error = f"429 quota épuisé sur {key[:8]}..."
                 continue
@@ -77,7 +67,7 @@ def _call_groq(payload: dict, timeout: int = 20) -> dict:
 
     return {"error": f"Toutes les clés sont épuisées ({total} tentatives). Dernière erreur : {last_error}"}
 
-# ── Web scraping ─────────────────────────────────────────────────────────────
+# ── Web scraping ──────────────────────────────────────────────────────────────
 def scrape_web_context(query: str) -> str:
     try:
         encoded_query = urllib.parse.quote_plus(query + " football news")
@@ -103,9 +93,8 @@ def scrape_web_context(query: str) -> str:
 
 from mcp_service import mcp_service
 
-# ── Email local (sans n8n) ───────────────────────────────────────────────────
+# ── Email local ───────────────────────────────────────────────────────────────
 def send_email_to_aro(from_name: str, from_email: str, message: str) -> str:
-    """Envoie un email à Aro depuis le chatbot."""
     try:
         gmail_user = os.environ.get("GMAIL_USER", "aroratovoharison@gmail.com")
         gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
@@ -131,7 +120,7 @@ def send_email_to_aro(from_name: str, from_email: str, message: str) -> str:
     except Exception as e:
         return f"Erreur envoi email: {str(e)}"
 
-# ── Définition des tools locaux ──────────────────────────────────────────────
+# ── Définition des tools locaux ───────────────────────────────────────────────
 LOCAL_TOOLS = [
     {
         "type": "function",
@@ -157,8 +146,9 @@ LOCAL_TOOLS = [
 ]
 LOCAL_TOOL_NAMES = {t["function"]["name"] for t in LOCAL_TOOLS}
 
-# ── Fonction principale ──────────────────────────────────────────────────────
+# ── Fonction principale ───────────────────────────────────────────────────────
 def chat_with_gemini(prompt: str, history: list = None):
+
     # 1. Scraping des infos récentes
     web_context = ""
     keywords = ["score", "match", "résultat", "transfert", "joueur", "classement", "news", "actu", "qui"]
@@ -171,7 +161,7 @@ def chat_with_gemini(prompt: str, history: list = None):
                 "Utilise ces infos pour répondre si elles sont pertinentes."
             )
 
-    # 2. Setup Persona — date en français sans locale système (incompatible Vercel)
+    # 2. Setup Persona
     from datetime import datetime
     _jours = ["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"]
     _mois  = ["janvier","février","mars","avril","mai","juin",
@@ -188,18 +178,25 @@ RÈGLES STRICTES DE COMMUNICATION :
 3. Si on te pose une question, réponds directement SANS utiliser d'outil.
 4. NE DÉCLENCHE UN OUTIL QUE SI ON TE DEMANDE EXPRESSÉMENT ET SI TU AS TOUTES LES INFOS.
 
+=== RÈGLE PRIORITAIRE ===
+Si le visiteur envoie un message hors-sujet (salutation, question générale) PENDANT
+une collecte d'infos (meeting, email), réponds brièvement à ce message PUIS rappelle
+où tu en es.
+Exemple : visiteur dit "salut" pendant collecte meeting → "Salut ! Donc, c'est pour quelle date ce meeting ?"
+
 === PROCESSUS POUR PROGRAMMER UN MEETING ===
-Si le visiteur demande un meeting/rendez-vous, tu DOIS appliquer CE DIALOGUE EXACT, étape par étape :
+Si le visiteur demande un meeting/rendez-vous, applique CE DIALOGUE EXACT étape par étape :
 
 Bot: "C'est quoi l'objet du meeting ?"
-(Le visiteur répond l'objet, ex: "Karaoké", "Projet")
+(Le visiteur répond l'objet)
 Bot: "C'est pour quelle date ?"
-(Le visiteur répond la date, ex: "3 juin")
+(Le visiteur répond la date)
 Bot: "À quelle heure, et ça dure combien de temps ?"
-(Le visiteur répond, ex: "14h, 1 heure")
-Bot: [APPELLE L'OUTIL Create_an_event_in_Google_Calendar].
+(Le visiteur répond)
+Bot: [APPELLE L'OUTIL Create_an_event_in_Google_Calendar]
 
-INTERDIT : Ne demande JAMAIS "C'est quoi le lien avec Aro ?", ni "C'est pour un meeting ?". Si tu attends la date, demande la date. Si tu attends l'heure, demande l'heure.
+INTERDIT : Ne demande JAMAIS autre chose entre ces étapes.
+INTERDIT : Ne demande pas "C'est quoi le lien avec Aro ?".
 
 === PROCESSUS POUR CONTACTER/ENVOYER UN EMAIL ===
 Si le visiteur veut envoyer un email/contacter :
@@ -219,16 +216,19 @@ User: Hackathon
 Bot: C'est pour quelle date ?
 
 User: 3 juin
-Bot: À quelle heure, et ça dure combien de temps ?"""
+Bot: À quelle heure, et ça dure combien de temps ?
 
-    # 3. Construction des messages (format OpenAI)
+User: 14h, 1 heure
+Bot: [appelle Create_an_event_in_Google_Calendar]"""
+
+    # 3. Construction des messages
     messages = [{"role": "system", "content": system_instruction}]
     if history:
         messages.extend(history)
     final_prompt = f"{web_context}\n\nQuestion: {prompt}" if web_context else prompt
     messages.append({"role": "user", "content": final_prompt})
 
-    # 4. Intégration ALL Tools = MCP + locaux
+    # 4. Chargement des outils MCP + locaux
     tools = list(LOCAL_TOOLS)
     try:
         mcp_tools = mcp_service.get_tools()
@@ -257,7 +257,7 @@ Bot: À quelle heure, et ça dure combien de temps ?"""
         payload["tools"] = tools
         payload["tool_choice"] = "auto"
 
-    # 6. Premier appel avec rotation automatique
+    # 6. Premier appel
     result = _call_groq(payload)
     if "error" in result:
         return result["error"]
@@ -272,17 +272,17 @@ Bot: À quelle heure, et ça dure combien de temps ?"""
     if message.get('tool_calls'):
         tool_call  = message['tool_calls'][0]
         call_name  = tool_call['function']['name']
+        call_args  = json.loads(tool_call['function']['arguments'])
 
         # Détection du type d'action pour le frontend
         action_type = None
         call_name_lower = call_name.lower()
-        if 'calendar' in call_name_lower or 'agenda' in call_name_lower:
+        if 'calendar' in call_name_lower or 'agenda' in call_name_lower or 'event' in call_name_lower:
             action_type = "open_calendar"
         elif 'mail' in call_name_lower or 'gmail' in call_name_lower or 'email' in call_name_lower:
             action_type = "open_email"
 
-        call_args = json.loads(tool_call['function']['arguments'])
-        print(f"Utilisation de l'outil: {call_name}")
+        print(f"Utilisation de l'outil: {call_name} avec args: {call_args}")
 
         # Dispatch : local ou MCP ?
         if call_name in LOCAL_TOOL_NAMES:
@@ -302,10 +302,15 @@ Bot: À quelle heure, et ça dure combien de temps ?"""
                 for content_item in mcp_res.content:
                     if content_item.type == "text":
                         text_results.append(content_item.text)
-            mcp_result_string = "\n".join(text_results) if text_results else "Tool executed."
+            mcp_result_string = "\n".join(text_results) if text_results else "Tool executed successfully."
 
-        # Deuxième appel avec le résultat de l'outil
-        messages.append(message)
+        # ── FIX 2 : safe_message — évite que tool_calls soit sérialisé comme JSON brut ──
+        safe_message = {
+            "role": "assistant",
+            "content": message.get("content") or "",
+            "tool_calls": message.get("tool_calls")
+        }
+        messages.append(safe_message)
         messages.append({
             "role": "tool",
             "tool_call_id": tool_call['id'],
@@ -313,6 +318,7 @@ Bot: À quelle heure, et ça dure combien de temps ?"""
         })
         payload["messages"] = messages
 
+        # Deuxième appel
         result_2 = _call_groq(payload, timeout=30)
         if "error" in result_2:
             return result_2["error"]
@@ -322,10 +328,11 @@ Bot: À quelle heure, et ça dure combien de temps ?"""
         except (KeyError, IndexError, TypeError):
             content_2 = None
 
-        if not content_2:
-            if 'calendar' in call_name.lower() or 'event' in call_name.lower():
+        # ── FIX 2 : fallback si content vide ou JSON brut ──
+        if not content_2 or content_2.strip().startswith("{"):
+            if 'calendar' in call_name_lower or 'event' in call_name_lower:
                 content_2 = "L'événement a été créé avec succès dans le calendrier d'Aro !"
-            elif 'email' in call_name.lower() or 'mail' in call_name.lower():
+            elif 'email' in call_name_lower or 'mail' in call_name_lower:
                 content_2 = "L'email a été envoyé à Aro !"
             else:
                 content_2 = "C'est fait !"
