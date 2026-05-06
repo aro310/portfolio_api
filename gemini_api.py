@@ -260,13 +260,22 @@ Ne te re-présente pas si tu as déjà salué le visiteur dans l'historique."""
                 return f"Erreur API 2ème passe ({response_2.status_code}): {response_2.text}"
 
             result_2 = response_2.json()
-            return {"response": result_2['choices'][0]['message']['content'], "action": action_type}
+            content_2 = result_2['choices'][0]['message'].get('content')
+            if not content_2:
+                if 'calendar' in call_name.lower() or 'event' in call_name.lower():
+                    content_2 = "L’événement a été créé avec succès dans le calendrier d’Aro !"
+                elif 'email' in call_name.lower() or 'mail' in call_name.lower():
+                    content_2 = "L’email a été envoyé à Aro !"
+                else:
+                    content_2 = "C’est fait !"
+            return {"response": content_2, "action": action_type}
 
         else:
-            return {"response": message['content'], "action": None}
+            content = message.get('content') or "Bonjour ! Comment puis-je t'aider ?"
+            return {"response": content, "action": None}
 
     except (KeyError, IndexError, TypeError) as e:
-        print("Erreur parsing réponse:", result, e)
-        return "Pas de réponse lisible du modèle."
+        print("Erreur parsing réponse:", e)
+        return {"response": "Désolé, une erreur est survenue. Réessaie !", "action": None}
     except Exception as e:
         return f"Erreur interne : {str(e)}"
