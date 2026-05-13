@@ -20,7 +20,7 @@ except Exception as _e:
     print(f"Supabase non disponible : {_e}")
 
 
-def _load_history(session_id: str, limit: int = 20) -> list:
+def _load_history(session_id: str, limit: int = 6) -> list:
     """Charge les derniers messages d'une session depuis Supabase."""
     if not _supabase or not session_id:
         return []
@@ -33,7 +33,14 @@ def _load_history(session_id: str, limit: int = 20) -> list:
             .limit(limit)
             .execute()
         )
-        return [{"role": r["role"], "content": r["content"]} for r in (res.data or [])]
+        history = []
+        for r in (res.data or []):
+            content = r["content"] or ""
+            # Truncate long messages to keep payload under Groq's limits
+            if len(content) > 800:
+                content = content[:800] + "..."
+            history.append({"role": r["role"], "content": content})
+        return history
     except Exception as e:
         print(f"Erreur chargement historique : {e}")
         return []
