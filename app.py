@@ -135,7 +135,7 @@ def chat():
 
 @app.route("/api/run-script", methods=["POST"])
 def run_script():
-    """Endpoint Audio (TTS)"""
+    """Endpoint Audio (TTS) — returns audio_base64: null if all ElevenLabs keys fail."""
     try:
         if not generate_audio_base64:
              return jsonify({"status": "error", "message": "Module Audio (ele.py) non trouvé sur le serveur"}), 503
@@ -146,16 +146,13 @@ def run_script():
         if not texte:
             return jsonify({"status": "error", "message": "Texte manquant pour l'audio"}), 400
 
-        # Génération
+        # generate_audio_base64 returns None when all keys are exhausted — graceful fallback
         audio_b64 = generate_audio_base64(texte)
-        
-        if not audio_b64:
-            return jsonify({"status": "error", "message": "Échec génération ElevenLabs"}), 500
 
         return jsonify({
             "status": "success",
-            "message": "Audio généré",
-            "audio_base64": audio_b64
+            "message": "Audio généré" if audio_b64 else "Mode texte seul (quota ElevenLabs épuisé)",
+            "audio_base64": audio_b64  # None → frontend shows text only, no error
         })
 
     except Exception as e:
