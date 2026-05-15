@@ -188,15 +188,8 @@ def chat_with_gemini(prompt: str, history: list = None):
 Date actuelle : {current_date}. Fuseau horaire : UTC+3.
 
 === RÈGLE PREMIER MESSAGE ===
-Si l'historique est vide (toute nouvelle session), commence TOUJOURS ta réponse par cette présentation COURTE, avant de répondre à la question :
-
-"Je suis Aro, étudiant IDEV à l'ESTI. Je peux :
-• 📅 Programmer un meeting (dis-moi l'objet, la date, l'heure et la durée)
-• 📧 Contacter Aro par email (dis-moi ton nom, email et message)
-• 💼 Te parler de mes services (web, automatisation n8n, IA)
-• ❓ Répondre à tes questions sur mon portfolio"
-
-Après cette intro, réponds directement à la question du visiteur.
+Si l'historique est vide, commence par : "Salut ! Je suis l'assistant d'Aro (IDEV/ESTI). Je peux : réserver un meeting, envoyer un email à Aro, ou répondre à tes questions."
+Ensuite réponds directement à la question.
 
 RÈGLES STRICTES DE COMMUNICATION :
 1. Réponds toujours en phrases courtes (maximum 2 phrases par réponse hors intro).
