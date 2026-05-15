@@ -33,7 +33,8 @@ def get_next_key() -> str:
         _key_index += 1
     return key
 
-def _call_groq(payload: dict, timeout: int = 20) -> dict:
+def _call_groq(payload: dict, timeout: int = 7) -> dict:
+    """Try each Groq key. Raises RuntimeError with a clean code on failure."""
     last_error = None
     tried = 0
     total = len(_GROQ_KEYS)
@@ -249,22 +250,28 @@ Bot: [appelle Create_an_event_in_Google_Calendar]"""
     final_prompt = f"{web_context}\n\nQuestion: {prompt}" if web_context else prompt
     messages.append({"role": "user", "content": final_prompt})
 
-    # 4. Chargement des outils MCP + locaux
+    # 4. Chargement des outils MCP + locaux (2s timeout pour ne pas bloquer Vercel)
     tools = list(LOCAL_TOOLS)
     try:
-        mcp_tools = mcp_service.get_tools()
-        if mcp_tools:
-            for t in mcp_tools:
-                tools.append({
-                    "type": "function",
-                    "function": {
-                        "name": t.name,
-                        "description": t.description,
-                        "parameters": t.inputSchema
-                    }
-                })
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(mcp_service.get_tools)
+            try:
+                mcp_tools = future.result(timeout=2)
+                if mcp_tools:
+                    for t in mcp_tools:
+                        tools.append({
+                            "type": "function",
+                            "function": {
+                                "name": t.name,
+                                "description": t.description,
+                                "parameters": t.inputSchema
+                            }
+                        })
+            except FuturesTimeout:
+                print("[MCP] get_tools() timeout (>2s) — skipping MCP tools this request")
     except Exception as e:
-        print(f"Erreur lors du chargement des outils MCP: {e}")
+        print(f"[MCP] Error loading tools: {e}")
 
     # 5. Payload Groq
     payload = {
