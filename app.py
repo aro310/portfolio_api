@@ -108,8 +108,18 @@ def chat():
         # Sauvegarder le message user
         _save_message(session_id, "user", prompt)
 
-        # Appel LLM
-        chat_result = chat_with_gemini(prompt, history)
+        # Appel LLM — peut lever RuntimeError si l'API est restreinte
+        try:
+            chat_result = chat_with_gemini(prompt, history)
+        except RuntimeError as api_err:
+            err_code = str(api_err)
+            # Map clean error codes to user-friendly messages (no raw JSON)
+            friendly = {
+                "api_restricted":    "Le service IA est temporairement indisponible. Réessaie dans quelques instants.",
+                "all_keys_exhausted":"Toutes les clés API sont épuisées. Réessaie plus tard.",
+            }.get(err_code, "Service IA temporairement indisponible.")
+            print(f"[Chat] API error: {err_code}")  # log server-side only
+            return jsonify({"status": "error", "message": friendly}), 503
 
         response_text = ""
         action = None

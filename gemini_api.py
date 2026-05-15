@@ -50,22 +50,36 @@ def _call_groq(payload: dict, timeout: int = 20) -> dict:
 
             if resp.status_code == 429:
                 print(f"[ROTATION] Clé {key[:8]}... épuisée (429), passage à la suivante.")
-                last_error = f"429 quota épuisé sur {key[:8]}..."
+                last_error = "quota_exceeded"
                 continue
 
             if resp.status_code != 200:
-                return {"error": f"Erreur API ({resp.status_code}): {resp.text}"}
+                # Try to extract a clean error code without raw JSON
+                try:
+                    err_body = resp.json()
+                    err_code = err_body.get("error", {}).get("code", "")
+                    err_type = err_body.get("error", {}).get("type", "")
+                    if err_code == "organization_restricted" or "restricted" in str(err_body):
+                        raise RuntimeError("api_restricted")
+                    last_error = f"HTTP {resp.status_code} ({err_code or err_type})"
+                except RuntimeError:
+                    raise
+                except Exception:
+                    last_error = f"HTTP {resp.status_code}"
+                continue
 
             return resp.json()
 
+        except RuntimeError:
+            raise  # propagate clean errors upward immediately
         except requests.exceptions.Timeout:
-            last_error = f"Timeout sur {key[:8]}..."
+            last_error = "timeout"
             continue
         except Exception as e:
             last_error = str(e)
             continue
 
-    return {"error": f"Toutes les clés sont épuisées ({total} tentatives). Dernière erreur : {last_error}"}
+    raise RuntimeError("all_keys_exhausted")
 
 # ── Web scraping ──────────────────────────────────────────────────────────────
 def scrape_web_context(query: str) -> str:
@@ -172,17 +186,25 @@ def chat_with_gemini(prompt: str, history: list = None):
     system_instruction = f"""Tu es l'assistant IA du portfolio de Aro Fortunat (développeur & expert n8n, Madagascar).
 Date actuelle : {current_date}. Fuseau horaire : UTC+3.
 
+=== RÈGLE PREMIER MESSAGE ===
+Si l'historique est vide (toute nouvelle session), commence TOUJOURS ta réponse par cette présentation COURTE, avant de répondre à la question :
+
+"Je suis Aro, étudiant IDEV à l'ESTI. Je peux :
+• 📅 Programmer un meeting (dis-moi l'objet, la date, l'heure et la durée)
+• 📧 Contacter Aro par email (dis-moi ton nom, email et message)
+• 💼 Te parler de mes services (web, automatisation n8n, IA)
+• ❓ Répondre à tes questions sur mon portfolio"
+
+Après cette intro, réponds directement à la question du visiteur.
+
 RÈGLES STRICTES DE COMMUNICATION :
-1. Réponds toujours en UNE SEULE PHRASE (maximum 15 mots).
+1. Réponds toujours en phrases courtes (maximum 2 phrases par réponse hors intro).
 2. Ne fais jamais de mondanités (pas de "Ah super", "Très bien", "C'est noté").
 3. Si on te pose une question, réponds directement SANS utiliser d'outil.
 4. NE DÉCLENCHE UN OUTIL QUE SI ON TE DEMANDE EXPRESSÉMENT ET SI TU AS TOUTES LES INFOS.
 
 === RÈGLE PRIORITAIRE ===
-Si le visiteur envoie un message hors-sujet (salutation, question générale) PENDANT
-une collecte d'infos (meeting, email), réponds brièvement à ce message PUIS rappelle
-où tu en es.
-Exemple : visiteur dit "salut" pendant collecte meeting → "Salut ! Donc, c'est pour quelle date ce meeting ?"
+Si le visiteur envoie un message hors-sujet PENDANT une collecte d'infos (meeting, email), réponds brièvement PUIS rappelle où tu en es.
 
 === PROCESSUS POUR PROGRAMMER UN MEETING ===
 Si le visiteur demande un meeting/rendez-vous, applique CE DIALOGUE EXACT étape par étape :
@@ -196,7 +218,6 @@ Bot: "À quelle heure, et ça dure combien de temps ?"
 Bot: [APPELLE L'OUTIL Create_an_event_in_Google_Calendar]
 
 INTERDIT : Ne demande JAMAIS autre chose entre ces étapes.
-INTERDIT : Ne demande pas "C'est quoi le lien avec Aro ?".
 
 === PROCESSUS POUR CONTACTER/ENVOYER UN EMAIL ===
 Si le visiteur veut envoyer un email/contacter :
@@ -205,18 +226,18 @@ Si le visiteur veut envoyer un email/contacter :
 3. "Quel est ton message ?"
 4. [APPELLE L'OUTIL send_email_to_aro]
 
-=== EXEMPLES DE COMPORTEMENT ATTENDU ===
-User: Parle-moi de tes services.
-Bot: Aro propose du développement web et de l'automatisation avec n8n.
+=== EXEMPLES ===
+User: Bonjour
+Bot: [intro complète] — puis "Bonjour ! Comment puis-je t'aider ?"
 
 User: Je veux programmer un meeting
-Bot: C'est quoi l'objet du meeting ?
+Bot: "C'est quoi l'objet du meeting ?"
 
 User: Hackathon
-Bot: C'est pour quelle date ?
+Bot: "C'est pour quelle date ?"
 
 User: 3 juin
-Bot: À quelle heure, et ça dure combien de temps ?
+Bot: "À quelle heure, et ça dure combien de temps ?"
 
 User: 14h, 1 heure
 Bot: [appelle Create_an_event_in_Google_Calendar]"""
@@ -257,10 +278,8 @@ Bot: [appelle Create_an_event_in_Google_Calendar]"""
         payload["tools"] = tools
         payload["tool_choice"] = "auto"
 
-    # 6. Premier appel
+    # 6. Premier appel — raises RuntimeError on API failure
     result = _call_groq(payload)
-    if "error" in result:
-        return result["error"]
 
     try:
         message = result['choices'][0]['message']
