@@ -91,21 +91,27 @@ def home():
 def chat():
     """
     Endpoint Chat.
-    Accepte { "prompt": "...", "session_id": "..." }
-    Historique chargé/sauvegardé dans Supabase si configuré.
+    Accepte { "prompt": "...", "session_id": "...", "history": [...] }
+    L'historique est prioritairement lu depuis le frontend (fiable),
+    avec Supabase en fallback si absent.
     """
     try:
         data = request.get_json()
         prompt = data.get("prompt")
         session_id = data.get("session_id", "")
+        client_history = data.get("history", None)  # sent directly from React state
 
         if not prompt:
             return jsonify({"status": "error", "message": "Prompt vide"}), 400
 
-        # Charger l'historique depuis Supabase (ou liste vide si pas configuré)
-        history = _load_history(session_id)
+        # Priorité : historique envoyé par le frontend (React state)
+        # Fallback : Supabase (si frontend n'envoie rien)
+        if client_history is not None:
+            history = client_history  # list of {role, content}
+        else:
+            history = _load_history(session_id)
 
-        # Sauvegarder le message user
+        # Sauvegarder le message user (best-effort, n'affecte pas la réponse)
         _save_message(session_id, "user", prompt)
 
         # Appel LLM — peut lever RuntimeError si l'API est restreinte
