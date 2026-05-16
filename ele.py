@@ -10,11 +10,10 @@ if _env_keys:
     ELEVENLABS_API_KEYS = [k.strip() for k in _env_keys.split(",") if k.strip()]
 else:
     ELEVENLABS_API_KEYS = [
-        "sk_33b9dee5ac3ac4e3c55b337d04d644816fcbf497dc93408e",
-        "sk_b15828ef829138a668570cf2e049bbee8b474c79dbc5e8e6",
-        "sk_55524b9c3e4677f0e279ec7db556e1d9d9e3b90a5329e83e",
-        "sk_347b68e3aec98ee812e93934c9844c323356af05713ad9a0",
+        "sk_b15828ef829138a668570cf2e049bbee8b474c79dbc5e8e6",  # free | 0/10000
+        "sk_55524b9c3e4677f0e279ec7db556e1d9d9e3b90a5329e83e",  # free | 361/10000
     ]
+
 
 # Quota-exhausted keys are temporarily blacklisted to avoid repeated failures.
 # Key: api_key string, Value: True if blacklisted
